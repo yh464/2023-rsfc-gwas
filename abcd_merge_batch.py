@@ -2,8 +2,8 @@
 
 subjlist = open('/rds/project/rds-CeXlNYOYMxw/userdata/yh464/ABCD_fMRIprep/subj_list.txt').read().splitlines()
 
-from _utils import array_submitter
-submitter = array_submitter.array_submitter(
+from _utils.slurm import array_submitter
+submitter = array_submitter(
     name = 'abcd_merge', n_cpu = 1,
     timeout = 10, mode = 'long', arraysize = 100,
     env = 'datalad')

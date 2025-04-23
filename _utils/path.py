@@ -11,8 +11,93 @@ This utility manages the nomenclature of file names / paths
 
 import os
 import numpy as np
+import gzip
+from fnmatch import fnmatch
+import warnings
 import re
 import pandas as pd
+
+def find_clump(dirname, prefix, pval):
+    '''
+    Find PLINK clump files for a specific trait
+    Quality controls to find strictest p-value threshold with >5 SNP
+    dirname: Directory to look for clumps
+    prefix: name of phenotype
+    pval: p-value
+    '''
+    if os.path.isfile(f'{dirname}/{prefix}_{pval:.0e}.clumped'):
+        # min 5 SNPs
+        if len(open(f'{dirname}/{prefix}_{pval:.0e}.clumped').read().splitlines()) > 5:
+            return f'{dirname}/{prefix}_{pval:.0e}.clumped', pval
+    # identify clump file with lowest p-value with >=5 SNPs
+    flist = [] 
+    for y in os.listdir(dirname):
+        if fnmatch(y,f'{prefix}_?e-??.clumped'): 
+            if len(open(f'{dirname}/{y}').read().splitlines()) > 5:
+                flist.append(y)
+    if len(flist) > 0:
+        plist = [float(z[-13:-8]) for z in flist]
+        return f'{dirname}/{prefix}_{min(plist):.0e}.clumped', min(plist)
+    
+    for y in os.listdir(dirname):
+        if fnmatch(y,f'{prefix}_?e-??.clumped'): 
+             flist.append(y)
+    if len(flist) > 0:
+        plist = [float(z[-13:-8]) for z in flist]
+        warnings.warn(f'{prefix} has <5 SNPs')
+        return f'{dirname}/{prefix}_{max(plist):.0e}.clumped', max(plist)
+    raise FileNotFoundError(f'No clump found for {prefix}')
+    
+def find_gwas(*pheno, 
+              dirname = '/rds/project/rb643/rds-rb643-ukbiobank2/Data_Users/yh464/gwa', 
+              ext = 'fastGWA',
+              long = False,
+              se = False):
+    '''
+    Data structure: {dirname}/{pheno[0]}/*.{ext}
+    pheno: phenotype groups
+    dirname: directory of all GWAS sumstats
+    ext: extension, usually fastGWA
+    long: specifies two handy output formats
+        True - output = [(<group0>, <pheno0.0>), (<group0>, <pheno0.1>), ...]
+        False - output = [(<group0>, [<pheno0.0>, <pheno0.1>, ...]), ...]
+    signstat: filters for only GWAS with an SE column, not just Z score
+    '''
+    
+    out = []
+    if len(pheno) == 0: return []
+    if type(pheno[0]) in [list, tuple]:
+        pheno = [y for x in pheno for y in x]
+    for p in pheno:
+        xlist = []
+        for x in sorted(os.listdir(f'{dirname}/{p}')):
+            if not fnmatch(x.replace('.gz',''), f'*.{ext}') or fnmatch(x,f'*_X.{ext}'): continue
+            if se:
+                f = open(f'{dirname}/{p}/{x}') if x.find('.gz') < 0 else \
+                    gzip.open(f'{dirname}/{p}/{x}')
+                hdr = f.readline().replace('\n','').split()
+                hdr = [x.upper() for x in hdr]
+                if not 'SE' in hdr: continue
+            xlist.append(x.replace(f'.{ext}','').replace('.gz',''))
+        out.append((p, xlist))
+    if long: out = [(x,z) for x,y in out for z in y]
+    return out
+
+def pair_gwas(gwa1, gwa2 = []):
+    '''
+    Input: gwa1 and gwa2 are both [(group, [pheno1, pheno2,...]),...] lists
+    in the same format as find_gwas(long = False) output
+    '''
+    pairwise = []
+    if len(gwa2) > 0:
+        for g1, p1s in gwa1:
+            for g2, p2s in gwa2:
+                pairwise.append((g1, p1s, g2, p2s))
+    else:
+        for i in range(len(gwa1)):
+            for j in range(i, len(gwa1)):
+                pairwise.append((gwa1[i][0], gwa1[i][1], gwa1[j][0], gwa1[j][1]))
+    return pairwise
 
 class normaliser():
     def __init__(self, _dir = os.path.realpath('../path/'), _dict = 'dict.txt'):
