@@ -46,7 +46,7 @@ nroi = 376
 in_filename = args._in.replace('%sub',args.subj)
 
 if not os.path.isdir(args.out): os.system(f'mkdir -p {args.out}/')              # creates parent folders
-if not os.path.isdir(f'{args.out}/global/'): os.system(f'mkdir -p {args.out}/global/')
+if not os.path.isdir(f'{args.out}/global_graph/'): os.system(f'mkdir -p {args.out}/global/')
 if not os.path.isdir(f'{args.out}/local/'): os.system(f'mkdir -p {args.out}/local/')
 if not os.path.isdir(f'{args.out}/global_asym/'): os.system(f'mkdir -p {args.out}/global_asym/')
 if not os.path.isdir(f'{args.out}/local_asym/'): os.system(f'mkdir -p {args.out}/local_asym/')
@@ -80,7 +80,7 @@ if args.force: skip = False
 
 if skip:
   try:
-    tmp = np.loadtxt(f'{args.out}/global/{args.subj}.txt')
+    tmp = np.loadtxt(f'{args.out}/global_graph/{args.subj}.txt')
     if tmp.size != 17: skip = False
   except: skip = False
 
@@ -291,7 +291,7 @@ print(f'finished asymmetry phenotypes. time = {toc:.3f} seconds')
 
 # output files
 # global measures
-out_filename = f'{args.out}/global/{args.subj}.txt'
+out_filename = f'{args.out}/global_graph/{args.subj}.txt'
 # output order: 7 global measures and 5 hemispheric measures in blocks of 2
 df = pd.DataFrame(dict(
     deg_global = deg_global, degi_global = degi_global, degc_global = degc_global,
@@ -300,7 +300,7 @@ df = pd.DataFrame(dict(
     degi_l = degi_hem[0], degi_r = degi_hem[1], mpl_l = mpl_hem[0], mpl_r = mpl_hem[1],
     eff_l = eff_hem[0], eff_r = eff_hem[1], clu_l = clu_hem[0], clu_r = clu_hem[1],
     smw_l = smw_hem[0], smw_r = [smw_hem[1]]
-    ), index = ['global']).T
+    ), index = ['global_graph']).T
 df.to_csv(out_filename, sep ='\t', index = True, header = True)
 
 # local measures      
