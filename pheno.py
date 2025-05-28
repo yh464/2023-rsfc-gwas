@@ -46,10 +46,10 @@ nroi = 376
 in_filename = args._in.replace('%sub',args.subj)
 
 if not os.path.isdir(args.out): os.system(f'mkdir -p {args.out}/')              # creates parent folders
-if not os.path.isdir(f'{args.out}/global/'): os.mkdir(f'{args.out}/global/')
-if not os.path.isdir(f'{args.out}/local/'): os.mkdir(f'{args.out}/local/')
-if not os.path.isdir(f'{args.out}/global_asym/'): os.mkdir(f'{args.out}/global_asym/')
-if not os.path.isdir(f'{args.out}/local_asym/'): os.mkdir(f'{args.out}/local_asym/')
+if not os.path.isdir(f'{args.out}/global/'): os.system(f'mkdir -p {args.out}/global/')
+if not os.path.isdir(f'{args.out}/local/'): os.system(f'mkdir -p {args.out}/local/')
+if not os.path.isdir(f'{args.out}/global_asym/'): os.system(f'mkdir -p {args.out}/global_asym/')
+if not os.path.isdir(f'{args.out}/local_asym/'): os.system(f'mkdir -p {args.out}/local_asym/')
 
 if not os.path.isfile(in_filename):
   raise ValueError('No connectome found for the subject')
