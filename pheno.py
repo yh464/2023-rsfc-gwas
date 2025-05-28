@@ -31,7 +31,7 @@ parser.add_argument('subj',help = 'Subject ID')
 parser.add_argument('-i','--in',dest = '_in', help =
     'Target file to screen',
     default = '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Imaging/'+
-    '%sub/func/fMRI/parcellations/HCP.fsaverage.aparc_seq/Connectivity_sc2345.txt')
+    'UKB%sub/func/fMRI/parcellations/HCP.fsaverage.aparc_seq/Connectivity_sc2345.txt')
 parser.add_argument('-o','--out',dest = 'out', help = 'Output directory',
                     default = '../pheno/ukb/')
 parser.add_argument('-f','--force', dest = 'force', help = 'Force output',
