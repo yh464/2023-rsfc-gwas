@@ -22,8 +22,8 @@ def main(args):
     from time import perf_counter as t
     
     # array submitter
-    from _utils import array_submitter
-    submitter = array_submitter.array_submitter(
+    from _utils.slurm import array_submitter
+    submitter = array_submitter(
         name = 'fmri_parcel', n_cpu = 3,
         timeout = 40, modules = ['fsl','matlab/r2021b','freesurfer'],
         debug = False
@@ -100,7 +100,7 @@ def main(args):
             for parc in valid_parcs.split(' '):
                 parcdir = f'{fmri}/parcellations/{parc}'
                 out_ts = f'{parcdir}/{runid}_ts_sc2345.txt'
-                out_mat = f'{parcdir}/{runid}_Connectivity_sc2345.txt'
+                out_mat = f'{parcdir}/{runid}_Connectivity_sc234.txt'
                 if not os.path.isfile(out_ts) or not os.path.isfile(out_mat):
                     done = False
                     
@@ -116,9 +116,9 @@ def main(args):
     submitter.submit()
     
 if __name__ == '__main__':
-    import argparse
+    from _utils.slurm import slurm_parser
     import os
-    parser = argparse.ArgumentParser(
+    parser = slurm_parser(
         description = 'This programme runs parcellation for all subjects across a dataset')
     parser.add_argument('-i','--subj', dest = 'subj', help = 'List of subjects - if not a file, then automatically scans dir',
         default = '../params/subjlist_abcd_eur.txt')
@@ -139,7 +139,8 @@ if __name__ == '__main__':
         default = False, action = 'store_true')
     args = parser.parse_args()
     
-    from _utils import cmdhistory
+    from _utils import cmdhistory, logger
+    logger.splash(args)
     cmdhistory.log()
     try: main(args)
     except: cmdhistory.errlog()
