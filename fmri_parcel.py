@@ -55,14 +55,20 @@ def main(args):
     
     # check progress
     skip = True
+    fasttrack = True
     for parc in args.parc:
         parcdir = f'{fmri}/parcellations/{parc}'
         if not os.path.isdir(parcdir): os.mkdir(parcdir)
         
         ## file names specific to parcellation
         out_ts = f'{parcdir}/{runid}_ts_sc2345.txt'
-        out_mat = f'{parcdir}/{runid}_Connectivity_sc2345.txt'
+        out_mat = f'{parcdir}/{runid}_Connectivity_sc234.txt'
+        parc_fmrispace = f'{parcdir}/{parc}_fMRI_{runid}_space.nii.gz'
         if not os.path.isfile(out_ts) or not os.path.isfile(out_mat): skip = False
+        if os.path.isfile(parc_fmrispace):
+            if os.path.getsize(parc_fmrispace) < 5000: os.remove(parc_fmrispace)
+        if not os.path.isfile(parc_fmrispace): fasttrack = False
+        
     if skip and not args.force: 
         # clear up
         img_std = f'{reg}/fMRI_{runid}_std.nii.gz'
@@ -70,6 +76,7 @@ def main(args):
         os.system(f'rm -f {img_std} {img_t1space}')
         return
     
+    # co-registration
     img = f'{fmri}/{args.img}'
     t12std_xfm = f'{reg}/T1_to_std.txt'
     fmri2t1_xfm = f'{reg}/fMRI_{runid}_to_T1.txt'
@@ -77,42 +84,30 @@ def main(args):
     t1_std = f'{reg}/T1_std.nii.gz'
     img_std = f'{reg}/fMRI_{runid}_std.nii.gz'
     img_t1space = f'{reg}/fMRI_{runid}_t1space.nii.gz'
-    
-    print('='*20)
-    print(f'Running co-registration and parcellation for subject {args.sub}, {runid}')
-    
-    # quality ctrl to remove broken files
-    # import numpy as np
-    # for tmp in [t12fmri_xfm, t12std_xfm]:
-    #     if os.path.isfile(tmp):
-    #         try:
-    #             test = np.loadtxt(tmp, delimiter = '\s+')
-    #             if test.shape != (4,4): os.remove(tmp)
-    #             del test
-    #         except:
-    #             os.remove(tmp)
-    # del tmp
-    
-    # first do co-registration
-    print('Conducting co-registration')
-    ## orientation
-    if not os.path.isfile(f'{surf}/mri/T1_from_mask.nii.gz') or args.force:
-        os.system(f'mri_convert {surf}/mri/brainmask.mgz {surf}/mri/T1_from_mask.nii.gz')
-    
-    if not os.path.isfile(t1_std) or not os.path.isfile(t12std_xfm) or args.force:
-        os.system(f'fslreorient2std {surf}/mri/T1_from_mask.nii.gz {t1_std}')
-        os.system(f'fslreorient2std {surf}/mri/T1_from_mask.nii.gz > {t12std_xfm}')
-    
-    if os.path.isfile(img_std) and args.force:
-        os.remove(img_std)
-    if not os.path.isfile(img_std):
-        os.system(f'fslreorient2std {img} {img_std}')
+    if not fasttrack or args.force:
+        print('='*100)
+        print(f'Running co-registration and parcellation for subject {args.sub}, {runid}')
         
-    ## co-registration with FLIRT
-    if not os.path.isfile(img_t1space) or args.force:
-        os.system(f'flirt -in {img_std} -noresample -ref {t1_std} -out {img_t1space} -omat {fmri2t1_xfm}');
-        os.system(f'convert_xfm {fmri2t1_xfm} -inverse -omat {t12fmri_xfm}')
-    
+        # first do co-registration
+        print('Conducting co-registration')
+        ## orientation
+        if not os.path.isfile(f'{surf}/mri/T1_from_mask.nii.gz') or args.force:
+            os.system(f'mri_convert {surf}/mri/brainmask.mgz {surf}/mri/T1_from_mask.nii.gz')
+        
+        if not os.path.isfile(t1_std) or not os.path.isfile(t12std_xfm) or args.force:
+            os.system(f'fslreorient2std {surf}/mri/T1_from_mask.nii.gz {t1_std}')
+            os.system(f'fslreorient2std {surf}/mri/T1_from_mask.nii.gz > {t12std_xfm}')
+        
+        if os.path.isfile(img_std) and args.force:
+            os.remove(img_std)
+        if not os.path.isfile(img_std):
+            os.system(f'fslreorient2std {img} {img_std}')
+            
+        ## co-registration with FLIRT
+        if not os.path.isfile(img_t1space) or args.force:
+            os.system(f'flirt -in {img_std} -noresample -ref {t1_std} -out {img_t1space} -omat {fmri2t1_xfm}');
+            os.system(f'convert_xfm {fmri2t1_xfm} -inverse -omat {t12fmri_xfm}')
+        
     # then do parcellation
     for parc in args.parc:
         print(f'Conducting parcellation for {parc}')
@@ -124,11 +119,7 @@ def main(args):
         parc_fmrispace = f'{parcdir}/{parc}_fMRI_{runid}_space.nii.gz'
         parc_std = f'{parcdir}/{parc}_std.nii.gz'
         out_ts = f'{parcdir}/{runid}_ts_sc2345.txt'
-        out_mat = f'{parcdir}/{runid}_Connectivity_sc2345.txt'
-        
-        ## QC
-        if os.path.isfile(parc_fmrispace):
-            if os.path.getsize(parc_fmrispace) < 5000: os.remove(parc_fmrispace)
+        out_mat = f'{parcdir}/{runid}_Connectivity_sc234.txt'
         
         ## co-register parcellation with 
         if not os.path.isfile(parc_fmrispace) or args.force:
@@ -139,8 +130,8 @@ def main(args):
         ## extract time series
         if not os.path.isfile(out_ts) or not os.path.isfile(out_mat) or args.force:
             os.system(f'matlab -nodisplay -nosplash -sd {args.code} -batch "fMRI_extraction(\'{img_std}\','+
-                      f'\'{parc_fmrispace}\',\'{parcdir}/\',\'{runid}\')"')
-            # -sd: starting directory, should contain both fMRI_extraction and wavelets files
+                    f'\'{parc_fmrispace}\',\'{parcdir}/\',\'{runid}\')"')
+        # -sd: starting directory, should contain both fMRI_extraction and wavelets files
     
     # clear up
     os.system(f'rm -f {img_std} {img_t1space}')
