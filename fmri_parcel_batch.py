@@ -32,7 +32,7 @@ def main(args):
     tic = t()
     
     # error log for subjects with missing data
-    errlog = open('/rds/project/rb643/rds-rb643-ukbiobank2/Data_Users/yh464/logs/parcel_error.txt','w')
+    errlog = open('/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/logs/parcel_error.txt','w')
     
     # force parameter
     force = '-f' if args.force else ''
@@ -123,7 +123,7 @@ if __name__ == '__main__':
     parser.add_argument('-i','--subj', dest = 'subj', help = 'List of subjects - if not a file, then automatically scans dir',
         default = '../params/subjlist_abcd_eur.txt')
     parser.add_argument('-d','--dir', dest = '_dir', help = 'Directory containing imaging data',
-        default = '/rds/project/rb643/rds-rb643-abcd/Data_Imaging') # intended to be absolute
+        default = '/home/yh464/rds/rds-rb643-abcd/Data_Imaging') # intended to be absolute
     parser.add_argument('-c','--code', dest = 'code', help = 'Directory of matlab code for parcellation',
         default = os.path.realpath('../fmri'))
     parser.add_argument('--fmri', dest = 'fmri', 

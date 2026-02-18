@@ -19,8 +19,8 @@ class array_submitter():
                  n_node = 1,
                  n_task = 1,
                  n_cpu = 1,
-                 log = '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Users/yh464/logs',
-                 tmpdir = '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Users/yh464/temp',
+                 log = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/logs',
+                 tmpdir = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/temp',
                  lim = -1, # number of commands per file, default -1
                  arraysize = 500, # array size limit, default 2000 for CSD3 cluster, QOS max CPU per user limit 500
                  email = True,

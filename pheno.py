@@ -30,7 +30,7 @@ parser = ap.ArgumentParser(description='This programme processes the connectome 
 parser.add_argument('subj',help = 'Subject ID')
 parser.add_argument('-i','--in',dest = '_in', help =
     'Target file to screen',
-    default = '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Imaging/'+
+    default = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Imaging/'+
     'UKB%sub/func/fMRI/parcellations/HCP.fsaverage.aparc_seq/Connectivity_sc2345.txt')
 parser.add_argument('-o','--out',dest = 'out', help = 'Output directory',
                     default = '../pheno/ukb/')

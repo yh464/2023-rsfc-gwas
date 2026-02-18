@@ -179,7 +179,7 @@ if __name__ == '__main__':
     parser.add_argument('-i','--subj', dest = 'subj', help = 'List of subjects - if not a file, then automatically scans dir',
         default = '../params/subjlist_abcd_eur.txt')
     parser.add_argument('-d','--dir', dest = '_dir', help = 'Root directory containing imaging data',
-        default = '/rds/project/rb643/rds-rb643-abcd/Data_Imaging') # intended to be absolute
+        default = '/home/yh464/rds/rds-rb643-abcd/Data_Imaging') # intended to be absolute
     parser.add_argument('--fmri', dest = 'fmri', 
         help = 'Path from data folder to fMRI data, %sub = placeholder for subject',
         default = '%sub/ses-baseline-year1/func')

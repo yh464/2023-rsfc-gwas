@@ -21,7 +21,7 @@ def main(args):
     slist.sort()
     n = slist.size
     nodes = np.loadtxt(
-      '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Users/yh464/params/HCP.fsaverage_4mm_names.txt', 
+      '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/params/HCP.fsaverage_4mm_names.txt', 
       dtype ='U')
     nodes_u = nodes[:int(nodes.size/2)].copy()
     for i in range(nodes_u.size):
