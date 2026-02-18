@@ -123,7 +123,7 @@ class array_submitter():
         # read command line args before specifying limit of commands per file
         import __main__
         if 'args' in dir(__main__): self.config(**vars(__main__.args))
-        if not self.name.endswith('_0'): self.name += '_0' # ensure name ends with _0 for job ID tracking
+        if not self.name.endswith('_0'): self.name += '_0' # ensure name ends with _0 for job array indexing
 
         # if GPU > 0, adjust the partition and charge account
         if self.n_gpu > 0: 
@@ -341,7 +341,7 @@ class array_submitter():
         msg.append(f'    Path:       {self.tmpdir}')
         msg.append(f'    Log:        {self.logdir}')
         msg.append(f'    Partition:  {self.partition}')
-        msg.append(f'    Timeout:    {self.timeout * math.ceil(self._count / self.parallel)} minutes')
+        msg.append(f'    Timeout:    {self.timeout * self._count} minutes')
         msg.append(f'    CPUs:       {n_cpu}')
         if self.n_gpu > 0:
             msg.append(f'    GPUs:       {self.n_gpu}')
@@ -356,7 +356,7 @@ class array_submitter():
     def _submit_single(self):
         if self.debug: self._print(); self.submitted = True; return # debug mode -> print only
         if self.intr: os.system(f'for x in {self.tmpdir}/*.sh; do bash $x; done'); return
-        time = self.timeout * math.ceil(self._count / self.parallel)
+        time = self.timeout * self._count
         time = min(time, 720)
         email = '--mail-type=ALL' if self.email else ''
         account = f'-A {self.account}' if self.account else ''

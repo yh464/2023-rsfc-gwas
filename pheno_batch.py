@@ -14,7 +14,10 @@ def main(args):
     import time
     
     # nroi: HCP = 376, 500sym = 334, aparc = 84, economo = 102, sjh = 1027
-    nroi = 376
+    if 'HCP' in args._in: nroi = 376
+    elif os.path.basename(os.path.dirname(args._in)) == 'aparc_seq': nroi = 84
+    elif 'economo' in args._in: nroi = 102
+    else: raise ValueError('Unknown parcellation')
       
     if args.force:
       fs = ' -f'
