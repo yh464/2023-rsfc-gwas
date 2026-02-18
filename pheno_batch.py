@@ -65,9 +65,8 @@ def main(args):
     
 if __name__ == '__main__':
     # input argument processing
-    import argparse as ap
-    
-    parser = ap.ArgumentParser(description='This programme processes the connectome '+
+    from _utils.slurm import slurm_parser
+    parser = slurm_parser(description='This programme processes the connectome '+
                                ' for one single individual for imaging derived phenotypes')
     parser.add_argument('-i','--in',dest = '_in', help =
         'Target file to screen',
