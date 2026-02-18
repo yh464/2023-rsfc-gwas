@@ -84,6 +84,13 @@ class array_submitter():
         self.intr = intr
         self.parallel = parallel
         
+        # initialise command counts
+        self._staged_cmd = []
+        self._blank = True
+        self._count = 0
+        self._nfiles = 0
+        self._jobid = 0
+
         # SLURM config
         self.partition = partition
         self.timeout = timeout
@@ -113,14 +120,6 @@ class array_submitter():
         if account != None and account.find('sl2') >= 0: self.wallclock = min(self.wallclock, 2160)
         else: self.wallclock = min(self.wallclock, 720) 
 
-        # commands are staged up to an array size limit before a new job array is initialised
-        self.array_cmd_limit = self.arraysize * self.lim * self.parallel
-        self._staged_cmd = []
-        self._blank = True
-        self._count = 0
-        self._nfiles = 0
-        self._jobid = 0
-
         # read command line args before specifying limit of commands per file
         import __main__
         if 'args' in dir(__main__): self.config(**vars(__main__.args))
@@ -139,11 +138,12 @@ class array_submitter():
         self.lim = int(self.wallclock/timeout)
         self.lim = max(self.lim, 1) # at least one command per file
         _logger.log(f'Max {self.lim} batches * {self.parallel} commands per file, {self.arraysize} files per array job for {self.name}')
+        self.array_cmd_limit = self.arraysize * self.lim * self.parallel
 
         # directories
         self.logdir = f'{log}/{self.name}'
         self.tmpdir = f'{tmpdir}/{self.name}'
-        
+
         # SLURM status properties
         self.submitted = False
         self._slurmid = []
