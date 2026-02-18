@@ -26,7 +26,7 @@ import time
 
 # input argument processing
 parser = ap.ArgumentParser(description='This programme processes the connectome '+
-                           ' for one single individual for imaging derived phenotypes')
+                           ' for one single individual for graph phenotypes')
 parser.add_argument('subj',help = 'Subject ID')
 parser.add_argument('-i','--in',dest = '_in', help =
     'Target file to screen',
@@ -39,40 +39,42 @@ parser.add_argument('-f','--force', dest = 'force', help = 'Force output',
 args = parser.parse_args()
 args.out = os.path.realpath(args.out)
 
-# nroi: HCP = 376, 500sym = 334, aparc = 84, economo = 102, sjh = 1027
-nroi = 376
-
 # specify directories
 in_filename = args._in.replace('%sub',args.subj)
 
-if not os.path.isdir(args.out): os.system(f'mkdir -p {args.out}/')              # creates parent folders
-if not os.path.isdir(f'{args.out}/global_graph/'): os.system(f'mkdir -p {args.out}/global/')
-if not os.path.isdir(f'{args.out}/local/'): os.system(f'mkdir -p {args.out}/local/')
-if not os.path.isdir(f'{args.out}/global_asym/'): os.system(f'mkdir -p {args.out}/global_asym/')
-if not os.path.isdir(f'{args.out}/local_asym/'): os.system(f'mkdir -p {args.out}/local_asym/')
+os.makedirs(f'{args.out}/global_graph/', exist_ok = True)
+os.makedirs(f'{args.out}/local/', exist_ok = True)
+os.makedirs(f'{args.out}/global_asym/', exist_ok = True)
+os.makedirs(f'{args.out}/local_asym/', exist_ok = True)
 
 if not os.path.isfile(in_filename):
   raise ValueError('No connectome found for the subject')
+
+# nroi: HCP = 376, 500sym = 334, aparc = 84, economo = 102, sjh = 1027
+if 'HCP' in in_filename: nroi = 376; label_file = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/params/brain_region_labels_HCP.txt'
+# elif '500sym' in in_filename: nroi = 334 # not symmetric
+elif os.path.dirname(in_filename) == 'aparc_seq': nroi = 84; label_file = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/params/brain_region_labels_aparc.txt'
+elif 'economo' in in_filename: nroi = 102; label_file = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/params/brain_region_labels_economo.txt'
+# elif 'sjh' in in_filename: nroi = 1027 # not symmetric
+else: raise ValueError('Unknown parcellation')
 
 # loading the connectome  
 tic = time.perf_counter()
 rsc = np.loadtxt(in_filename,delimiter = ',')
 if nroi != rsc.shape[0]:
   raise ValueError('Connectome matrix does not have the right shape')
-order = np.concatenate((np.arange(0,8),np.arange(16,196),
-                        np.arange(8,16),np.arange(196,376)))
-rsc = rsc[order,:][:,order]                                                    # re-order to 188 L, 188 R   
 nroi_5 = int(nroi/2)                                                           # force int for indexing
+order = np.concatenate((np.arange(0,8),np.arange(16,8 + nroi_5),
+                        np.arange(8,16),np.arange(8 + nroi_5, nroi)))          # parcellations are ordered as LH subcort, RH subcort, LH cortical, RH cortical
+rsc = rsc[order,:][:,order]                                                    # re-order to 188 L, 188 R   
 if np.isnan(rsc).any():
   raise ValueError('NaN connectivity')
   
 # node labels
-nodes = np.loadtxt(
-  '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Users/yh464/params/HCP.fsaverage_4mm_names.txt', 
-  dtype ='U')
+nodes = np.loadtxt(label_file, dtype ='U')[order]
 nodes_u = nodes[:int(nodes.size/2)].copy()
 for i in range(nodes_u.size):
-  nodes_u[i] = nodes_u[i][2:] # unilateral label
+  nodes_u[i] = nodes_u[i].replace('L_','').replace('R_','')                    # remove hemisphere info for local asymmetry phenotypes
 
 # check progress
 skip = True
