@@ -22,12 +22,7 @@ def main(args):
     
     # array submitter
     from _utils.slurm import array_submitter
-    submitter = array_submitter.array_submitter(
-        name = 'pheno',
-        partition = 'icelake',
-        timeout = 15, mode = 'long', parallel = 8,
-        debug = False
-        )
+    submitter = array_submitter(name = 'pheno',partition = 'icelake',timeout = 15, mode = 'long', parallel = 8)
     
     subjs = np.loadtxt(args.subjs,dtype = 'U')
     n_completed = 0
