@@ -123,6 +123,7 @@ class array_submitter():
         # read command line args before specifying limit of commands per file
         import __main__
         if 'args' in dir(__main__): self.config(**vars(__main__.args))
+        if not self.name.endswith('_0'): self.name += '_0' # ensure name ends with _0 for job ID tracking
 
         # if GPU > 0, adjust the partition and charge account
         if self.n_gpu > 0: 
