@@ -16,8 +16,12 @@ from fnmatch import fnmatch
 import warnings
 import re
 import pandas as pd
+from .logger import logger
+log = logger()
 
-def find_clump(dirname, prefix, pval):
+def find_clump(group, pheno, 
+               dirname = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/clump',
+               pval = 5e-8):
     '''
     Find PLINK clump files for a specific trait
     Quality controls to find strictest p-value threshold with >5 SNP
@@ -25,69 +29,126 @@ def find_clump(dirname, prefix, pval):
     prefix: name of phenotype
     pval: p-value
     '''
-    if os.path.isfile(f'{dirname}/{prefix}_{pval:.0e}.clumped'):
+    dirname = f'{dirname}/{group}'
+    if os.path.isfile(f'{dirname}/{pheno}_{pval:.0e}.clumped'):
         # min 5 SNPs
-        if len(open(f'{dirname}/{prefix}_{pval:.0e}.clumped').read().splitlines()) > 5:
-            return f'{dirname}/{prefix}_{pval:.0e}.clumped', pval
+        if len(open(f'{dirname}/{pheno}_{pval:.0e}.clumped').read().splitlines()) > 5:
+            return f'{dirname}/{pheno}_{pval:.0e}.clumped', pval
     # identify clump file with lowest p-value with >=5 SNPs
     flist = [] 
     for y in os.listdir(dirname):
-        if fnmatch(y,f'{prefix}_?e-??.clumped'): 
+        if fnmatch(y,f'{pheno}_?e-??.clumped'): 
             if len(open(f'{dirname}/{y}').read().splitlines()) > 5:
                 flist.append(y)
     if len(flist) > 0:
         plist = [float(z[-13:-8]) for z in flist]
-        return f'{dirname}/{prefix}_{min(plist):.0e}.clumped', min(plist)
+        return f'{dirname}/{pheno}_{min(plist):.0e}.clumped', min(plist)
     
     for y in os.listdir(dirname):
-        if fnmatch(y,f'{prefix}_?e-??.clumped'): 
+        if fnmatch(y,f'{pheno}_?e-??.clumped'): 
              flist.append(y)
     if len(flist) > 0:
         plist = [float(z[-13:-8]) for z in flist]
-        warnings.warn(f'{prefix} has <5 SNPs')
-        return f'{dirname}/{prefix}_{max(plist):.0e}.clumped', max(plist)
-    raise FileNotFoundError(f'No clump found for {prefix}')
+        log.warn(f'{pheno} has <5 SNPs', calling_file = 'find_clump')
+        return f'{dirname}/{pheno}_{max(plist):.0e}.clumped', max(plist)
+    raise FileNotFoundError(f'No clump found for {pheno}')
     
 def find_gwas(*pheno, 
-              dirname = '/rds/project/rb643/rds-rb643-ukbiobank2/Data_Users/yh464/gwa', 
+              dirname = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/gwa', 
               ext = 'fastGWA',
+              exclude = [],
               long = False,
-              se = False):
+              se = False,
+              clump = False,
+              no_ukb = False
+            ):
     '''
     Data structure: {dirname}/{pheno[0]}/*.{ext}
-    pheno: phenotype groups
+    pheno: phenotype groups or <group>/<pheno>
     dirname: directory of all GWAS sumstats
     ext: extension, usually fastGWA
+    exclude: list of phenotypes to exclude from the search, matches pattern
     long: specifies two handy output formats
         True - output = [(<group0>, <pheno0.0>), (<group0>, <pheno0.1>), ...]
         False - output = [(<group0>, [<pheno0.0>, <pheno0.1>, ...]), ...]
-    signstat: filters for only GWAS with an SE column, not just Z score
+    se: filters for only GWAS with an SE column, not just Z score
+    clump: filters for GWAS with a clump output
+    no_ukb: True - finds datasets without UKBB cohort if possible
+        False - excludes datasets without UKBB cohort, where one with UKBB is available
+        anything else - includes all datasets
+    returns: a list of (group, [pheno1, pheno2, ...]) pairs or (group, pheno) pairs if long = True
+    all returned phenotypes are filtered to have a valid GWAS summary stats file
     '''
     
     out = []
     if len(pheno) == 0: return []
     if type(pheno[0]) in [list, tuple]:
         pheno = [y for x in pheno for y in x]
-    for p in pheno:
+    for p in sorted(pheno):
         xlist = []
-        for x in sorted(os.listdir(f'{dirname}/{p}')):
-            if not fnmatch(x.replace('.gz',''), f'*.{ext}') or fnmatch(x,f'*_X.{ext}'): continue
+        pdir = p.split('/')[0]
+        if p.find('/') < 0: ppat = '*'
+        elif p.find('^') >= 0: ppat = p.split('/')[1].replace('^','') # strict matching
+        else: ppat = '*' + p.split('/')[1] + '*'
+        for x in sorted(os.listdir(f'{dirname}/{pdir}')):
+            if not fnmatch(x.replace('.gz',''), f'{ppat}.{ext}') or fnmatch(x,f'{ppat}_X.{ext}'): continue
+            exc = False
+            for y in exclude:
+                if fnmatch(pdir,'*'+y.split('/')[0]+'*') and fnmatch(x, '*'+y.split('/')[1]+'*'):
+                    exc = True; break
+            if exc: continue
             if se:
-                f = open(f'{dirname}/{p}/{x}') if x.find('.gz') < 0 else \
-                    gzip.open(f'{dirname}/{p}/{x}')
+                f = open(f'{dirname}/{pdir}/{x}') if x.find('.gz') < 0 else \
+                    gzip.open(f'{dirname}/{pdir}/{x}')
                 hdr = f.readline().replace('\n','').split()
                 hdr = [x.upper() for x in hdr]
                 if not 'SE' in hdr: continue
+            if clump:
+                try: _, _ = find_clump(pdir, x.replace(f'.{ext}','').replace('.gz',''))
+                except: continue
             xlist.append(x.replace(f'.{ext}','').replace('.gz',''))
-        out.append((p, xlist))
-    if long: out = [(x,z) for x,y in out for z in y]
+        if isinstance(no_ukb, bool) and no_ukb:
+            tmp = xlist.copy()
+            for x in tmp:
+                if f'{x}_noUKBB' in xlist: xlist.remove(x)
+        elif isinstance(no_ukb, bool) and not no_ukb:
+            tmp = xlist.copy()
+            for x in tmp:
+                if x[-7:] == '_noUKBB' and x[:-7] in xlist: xlist.remove(x)
+        if len(out) == 0 or pdir != out[-1][0]: out.append((pdir, xlist))
+        else: out[-1] = (pdir, sorted(out[-1][1] + xlist))
+    out_long = [(x,z) for x,y in out for z in y]
+    log.log('Found following GWAS phenotypes')
+    for x, y in out_long:
+        log.log(f'    {x}/{y}')
+    log.log(f'Total {len(out_long)} phenotypes found')
+    if long: return out_long
     return out
 
-def pair_gwas(gwa1, gwa2 = []):
+def force_short(pheno):
+    '''Converts a list of [(group, pheno)] pairs into [(group, [pheno1, pheno2,...])] pairs'''
+    if len(pheno) == 0: return []
+    if not isinstance(pheno[0][1], str): return pheno
+    tmp = dict()
+    for g, p in pheno:
+        if g not in tmp.keys(): tmp[g] = [p]
+        else: tmp[g].append(p)
+    return [(g, sorted(ps)) for g, ps in tmp.items()]
+
+def force_long(pheno):
+    '''Converts a list of [(group, [pheno1, pheno2,...])] pairs into [(group, pheno)] pairs'''
+    if len(pheno) == 0: return []
+    if not isinstance(pheno[0][1], list): return pheno
+    return [(g, p) for g, ps in pheno for p in ps]
+
+def pair_gwas(gwa1, gwa2 = [], self_pair = True, short = False, long = False):
     '''
     Input: gwa1 and gwa2 are both [(group, [pheno1, pheno2,...]),...] lists
-    in the same format as find_gwas(long = False) output
+    in the same format as find_gwas output, compatible with long = True and False
+    Specify short / long = True to force conversion into short/long formats
     '''
+    if short: gwa1 = force_short(gwa1); gwa2 = force_short(gwa2)
+    if long: gwa1 = force_long(gwa1); gwa2 = force_long(gwa2)
     pairwise = []
     if len(gwa2) > 0:
         for g1, p1s in gwa1:
@@ -95,9 +156,76 @@ def pair_gwas(gwa1, gwa2 = []):
                 pairwise.append((g1, p1s, g2, p2s))
     else:
         for i in range(len(gwa1)):
-            for j in range(i, len(gwa1)):
+            for j in range(i if self_pair else i+1, len(gwa1)):
                 pairwise.append((gwa1[i][0], gwa1[i][1], gwa1[j][0], gwa1[j][1]))
     return pairwise
+
+def find_gene_sumstats(group, pheno, 
+    dirname = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/annot/magma',
+    annot = 'ENSG', ext = 'genes.out'):
+    '''Finds gene-level summary stats for a given phenotype
+    pheno parameter should be a single <group>, <pheno> tuple '''
+    
+    annot = annot.replace('.genes.annot','')
+    if dirname.find('smr') > -1: 
+        if not annot in os.listdir('/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/params/xqtl'):
+            annot = 'psychencode_eqtl'
+        if not ext in ['txt','smr']: ext = 'smr'
+        Warning('Found SMR in directory name, automatically setting config to SMR output')
+    if dirname.find('magma') > -1:
+        if not annot in os.listdir('/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/toolbox/hmagma') and not \
+            f'{annot}.genes.annot' in os.listdir('/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/toolbox/hmagma'):
+            annot = 'ENSG'
+        if not ext in ['genes.raw','genes.out']: ext = 'genes.out'
+        Warning('Found MAGMA in directory name, automatically setting config to MAGMA output')
+    
+    # first try exact match
+    out = f'{dirname}/{group}/{pheno}.{annot}.{ext}'
+    if os.path.isfile(out): return os.path.realpath(out)
+
+    # then try non-exact match over annotation
+    out = f'{dirname}/{group}/{pheno}.*{annot}*.{ext}'
+    for x in os.listdir(f'{dirname}/{group}'):
+        if fnmatch(x, out): return os.path.realpath(f'{dirname}/{group}/{x}')
+    return False
+
+def find_bed(bed, sep_chr = True, x = False):
+    n_chr = 1 if not sep_chr else 22 if not x else 23
+    if os.path.isfile(bed) and bed[-4:] == '.bed': return [bed[:-4]] * n_chr
+    elif os.path.isfile(bed + '.bed'): return [bed] * n_chr
+    elif os.path.isdir(bed) and sep_chr:
+        out = []
+        for chrom in range(1, n_chr + 1):
+            for file in os.listdir(bed):
+                if fnmatch(file.replace('X','23'),f'*chr{chrom}.bed'):
+                    out.append(f'{bed}/{file[:-4]}')
+        if len(out) != n_chr: raise FileNotFoundError('Incorrect number of chromosome-specific bed files')
+        return out
+    else:
+        out = open(bed).read().splitlines()
+        while out.count('') > 0: out.remove('')
+        if len(out) == 1: return out * n_chr
+        elif len(out) == n_chr: return out
+        elif len(out) == n_chr + 1: return out[:-1]
+        else: raise FileNotFoundError('Incorrect number of chromosome-specific bed files')
+
+def find_h5ad(*datasets, dirname = '/home/yh464/rds/rds-rb643-ukbiobank2/Data_Users/yh464/multiomics/raw', long = False):
+    '''
+    Finds h5ad files for a specific single-cell dataset
+    dirname: Directory to look for h5ad files
+    datasets: name of single-cell dataset
+    '''
+    if len(datasets) == 0: return []
+    if type(datasets[0]) in [list, tuple]:
+        datasets= [y for x in dataset for y in x]
+    
+    out = []
+    for dataset in datasets:
+        h5dir = f'{dirname}/{dataset}'
+        if not os.path.isdir(h5dir): raise FileNotFoundError(f'Cannot find directory for {dataset}')
+        out.append((dataset, [x[:-5] for x in os.listdir(h5dir) if fnmatch(x,'*.h5ad')]))
+    if long: out = [(x,y) for x,z in out for y in z]
+    return out
 
 class normaliser():
     def __init__(self, _dir = os.path.realpath('../path/'), _dict = 'dict.txt'):
@@ -113,11 +241,10 @@ class normaliser():
                 )).set_index('before')
             df.to_csv(self._dict_file, sep = '\t')
         
-        # load file
-        self._dict = pd.read_table(self._dict_file, index_col = 'before').fillna('')
+        self.load()
     
     def load(self):
-        self._dict = pd.read_table(self._dict_file, index_col = 'before').fillna('')
+        self._dict = pd.read_table(self._dict_file, index_col = 'before').fillna('').sort_index()
     
     def save(self):
         self._dict.to_csv(self._dict_file, sep = '\t', index = True, header = True)
@@ -142,56 +269,61 @@ class normaliser():
             self._dict = pd.concat((self._dict, 
                 pd.DataFrame(index = [before], columns =['after'], data = after)))
             self.save()
-    
-    def _normalise_df(self, df_in):
-        def n(series, x, y):
-            series = pd.Series(series)
-            if series.dtype in [int, float]: return series
-            if x[0] == '_':
-                series = series.str.replace(x, y, regex = True, case = False)
-            else:
-                series = series.replace(x,y).replace(x.lower(), y).replace(x.upper(),y)
-                series = '_' + series + '_'
-                series = series.str.replace(f'_{x}_',f'_{y}_', regex = True, case = False).str.replace(
-                f' {x}_',f' {y}_', regex = True, case = False).str.removeprefix('_').str.removesuffix('_')
-            return series
-        
-        df = df_in.copy()
-        for x in self._dict.index:
-            y = str(self._dict.loc[x, 'after'])
-            for col in df.columns:
-                if col == 'SNP': continue # NEVER change SNP IDs
-                try: df.loc[:,col] = n(df[col], x, y)
-                except: pass
-                
-            col = df.columns.to_frame()
-            for c in col.columns:
-                try: col.loc[:,c] = n(col[c],x,y)
-                except: pass
-            if col.shape[1] > 1:
-                df.columns = pd.MultiIndex.from_frame(col)
-            else: df.columns = col.iloc[:,0]
-            idx = df.index.to_frame()
-            for c in idx.columns:
-                try: idx.loc[:,c] = n(idx[c],x,y)
-                except: pass
-            if idx.shape[1] > 1:
-                df.set_index(pd.MultiIndex.from_frame(idx), inplace = True)
-            else: df.index = idx.iloc[:,0]
+
+    def _normalise_list(self, input_list):
+        try:
+            if isinstance(input_list, str): input_list = [input_list]
+            series = pd.Series(input_list)
+            if series.dtype in [int, float]: return series.tolist()
+            for x in self._dict.index.tolist():
+                y = str(self._dict.loc[x, 'after'])
+                if x[0] == '_':
+                    series = series.str.replace(x, y, regex = True, case = False)
+                elif x[0] == '^': # strict mapping
+                    series = series.replace(x[1:], y).replace(x[1:].lower(), y).replace(x[1:].upper(),y)
+                else:
+                    series = series.replace(x,y).replace(x.lower(), y).replace(x.upper(),y)
+                    series = '_' + series + '_'
+                    series = series.str.replace(f'_{x}_',f'_{y}_', regex = True, case = False).str.replace(
+                    f' {x}_',f' {y}_', regex = True, case = False).str.removeprefix('_').str.removesuffix('_')
+            return series.tolist()
+        except: return input_list
+
+    def _normalise_df(self, df_in, quickmap = False):
+        df = df_in.copy().reset_index(drop = True)
+        col = df_in.columns.to_frame().reset_index(drop = True)
+        idx = df_in.index.to_frame().reset_index(drop = True)
+        if quickmap and hasattr(self, 'quickmap'): normalise_func = lambda x: [self.quickmap(y) for y in x]
+        else: normalise_func = self._normalise_list
+        for c in df.columns:
+            if isinstance(c, tuple): continue
+            if c.upper() in ['SNP','CHR','POS','BETA','Z','SE','P', 'CELL_TYPE']: continue
+            # only normalise phenotype_related columns
+            # if not any([c.lower().find(x) > -1 for x in ['group','pheno','variable','trait']]): continue
+            df.loc[:,c] = normalise_func(df[c])
+        for c in col.columns:
+            col.loc[:,c] = normalise_func(col[c])
+        for c in idx.columns:
+            idx.loc[:,c] = normalise_func(idx[c])
+
+        if col.shape[1] > 1: df.columns = pd.MultiIndex.from_frame(col)
+        else: df.columns = col.iloc[:,0]
+        if idx.shape[1] > 1: df.set_index(pd.MultiIndex.from_frame(idx), inplace = True)
+        else: df.index = idx.iloc[:,0]
         return df
     
-    def normalise(self, data, backup = None):
+    def normalise(self, data, backup = None, quickmap = False):
         # read table if data is a file
         if type(data) == str and os.path.isfile(data):
             if backup == None: backup = f'{data}.bak'
             os.system(f'cp {data} {backup}')
             if data[-3:] == 'csv':                
                 df = pd.read_csv(data)
-                df = self._normalise_df(df)
+                df = self._normalise_df(df, quickmap = quickmap)
                 df.to_csv(data, index = False)
             else: 
                 df = pd.read_table(data, sep = '\\s+')
-                df = self._normalise_df(df)
+                df = self._normalise_df(df, quickmap = quickmap)
                 df.to_csv(data, index = False, sep = '\t')
             return df
         
@@ -201,8 +333,20 @@ class normaliser():
         # or try to coerse input object into pd.DataFrame
         else: df = pd.DataFrame(data)
         
-        return self._normalise_df(df)
-
+        return self._normalise_df(df, quickmap = quickmap)
+    
+    def quickmap_pheno(self, pheno):
+        from itertools import chain
+        # generalises an efficient mapping of phenotype names, based on output from find_gwas
+        groups = [x[0] for x in pheno]
+        phenos = [x[1] for x in pheno]
+        phenos = list(chain.from_iterable(phenos))
+        groups_norm = self._normalise_list(groups)
+        phenos_norm = self._normalise_list(phenos)
+        out_dict = dict(zip(groups + phenos, groups_norm + phenos_norm))
+        self.quickmap = lambda x: out_dict[x] if x in out_dict else x
+        return self.quickmap
+    
 class project():
     def __init__(self,
                  _dir = '../path/', # uses relative path, so defaults to the relative path to the wd

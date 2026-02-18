@@ -3,10 +3,14 @@
 python script that runs the asym_stats.py script in batches
 '''
 
+from _utils.logger import logger
+log = logger()
+
 def main(args):
     import os
     import numpy as np
     import pandas as pd
+    from tqdm import tqdm
     import time
     
     # nroi: HCP = 376, 500sym = 334, aparc = 84, economo = 102, sjh = 1027
@@ -21,28 +25,22 @@ def main(args):
     submitter = array_submitter.array_submitter(
         name = 'pheno',
         partition = 'icelake',
-        timeout = 5, mode = 'long',
+        timeout = 15, mode = 'long', parallel = 8,
         debug = False
         )
     
-    tic = time.perf_counter()
     subjs = np.loadtxt(args.subjs,dtype = 'U')
-    nsubj = subjs.size
-    logdir = '/rds/project/rb643-1/rds-rb643-ukbiobank2/Data_Users/yh464/logs/'
-    logout = 'asym_stats_batch.log'
-    f = open(logdir+logout,'w')
-    idx = 0
-    
-    for subj in subjs:
-      if idx % 100 == 0:
-          toc = time.perf_counter()-tic
-          print(f'Subject {idx} / {nsubj}, time = {toc:.3f}')
-      idx += 1
+    n_completed = 0
+    n_missing = 0
+    n_submitted = 0
+
+    for subj in tqdm(subjs, desc = 'Checking progress for subjects'):
       in_fname = args._in.replace('%sub',subj)
       
       # check progress
       if not os.path.isfile(in_fname):
-        print(f'{subj}: no connectome found', file = f)
+        log.log(f'{subj}: no connectome found')
+        n_missing += 1
         continue
       
       skip = True
@@ -52,33 +50,20 @@ def main(args):
         try:
           tmp = np.loadtxt(f'{args.out}/global/{subj}.txt')
           if tmp.size != 17: skip = False
-        except: skip = False
-      
-      if skip:
-        try:
           tmp = np.loadtxt(f'{args.out}/global_asym/{subj}.txt')
           if tmp.size != 17: skip = False
-        except: skip = False
-      
-      if skip:
-        try:
           tmp = pd.read_csv(f'{args.out}/local/{subj}.txt')
           if tmp.shape[0] != nroi or tmp.shape[1] != 7: skip = False
-        except: skip = False
-      
-      if skip:
-        try:
           tmp = pd.read_csv(f'{args.out}/local_asym/{subj}.txt')
           if tmp.shape[0] != nroi/2 or tmp.shape[1] != 21: skip = False
         except: skip = False
       
       if skip: 
-        print(f'{subj}: connectome is already phenotyped', file = f)
+        n_completed += 1
       else:
         indir = args._in.replace('%sub', subj)
-        submitter.add(
-          f'python pheno.py {subj} -i {indir} -o {args.out}/{fs}')
-        print(f'{subj} submitted for analysis', file = f)
+        n_submitted += 1
+        submitter.add(f'python pheno.py {subj} -i {indir} -o {args.out} {fs}')
     
     submitter.submit()
     
@@ -102,13 +87,10 @@ if __name__ == '__main__':
     args = parser.parse_args()
     import os
     for arg in ['_in','out','subjs']:
-        exec(f'args.{arg} = os.path.realpath(args.{arg})')
+        setattr(args, arg, os.path.realpath(getattr(args, arg)))
         
-    from _utils import cmdhistory, path, logger
+    from _utils import cmdhistory, logger
     logger.splash(args)
     cmdhistory.log()
-    proj = path.project()
-    proj.add_input(args._in, __file__)
-    proj.add_output(args.out, __file__)
     try: main(args)
     except: cmdhistory.errlog()
