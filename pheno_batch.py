@@ -21,7 +21,7 @@ def main(args):
     else: fs = ''
     
     # array submitter
-    from _utils import array_submitter
+    from _utils.slurm import array_submitter
     submitter = array_submitter.array_submitter(
         name = 'pheno',
         partition = 'icelake',
