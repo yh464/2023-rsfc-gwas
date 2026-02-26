@@ -52,7 +52,7 @@ def main(args):
     # check progress for all subjects
     if not args.force:
       progress = list(tqdm(pool.imap(qc, [(subj, nroi, args) for subj in subjs], chunksize = 64), total = len(subjs), desc = 'Checking progress for subjects'))
-      completed = [x[1] for x in progress]; missing = [x[0] for x in progress]; to_submit = [x[0] and not x[1] for x in progress]
+      completed = [x[1] for x in progress]; missing = [not x[0] for x in progress]; to_submit = [x[0] and not x[1] for x in progress]
       n_completed = sum(completed); n_missing = sum(missing); n_to_submit = sum(to_submit)
       log.log(f'{n_completed} subjects completed, {n_missing} subjects missing, {n_to_submit} subjects with incomplete output')
       for subj in subjs[to_submit]: submitter.add(f'python pheno.py {subj} -i {args._in.replace("%sub", subj)} -o {args.out} {fs}')
