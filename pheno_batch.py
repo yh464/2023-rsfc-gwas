@@ -50,9 +50,9 @@ def main(args):
           if tmp.size != 17: skip = False
           tmp = np.loadtxt(f'{args.out}/global_asym/{subj}.txt')
           if tmp.size != 17: skip = False
-          tmp = pd.read_csv(f'{args.out}/local/{subj}.txt')
+          tmp = pd.read_table(f'{args.out}/local/{subj}.txt')
           if tmp.shape[0] != nroi or tmp.shape[1] != 7: skip = False
-          tmp = pd.read_csv(f'{args.out}/local_asym/{subj}.txt')
+          tmp = pd.read_table(f'{args.out}/local_asym/{subj}.txt')
           if tmp.shape[0] != nroi/2 or tmp.shape[1] != 21: skip = False
         except: skip = False
       
