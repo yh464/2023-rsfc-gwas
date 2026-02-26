@@ -46,7 +46,7 @@ def main(args):
       
       if skip:
         try:
-          tmp = np.loadtxt(f'{args.out}/global/{subj}.txt')
+          tmp = np.loadtxt(f'{args.out}/global_graph/{subj}.txt')
           if tmp.size != 17: skip = False
           tmp = np.loadtxt(f'{args.out}/global_asym/{subj}.txt')
           if tmp.size != 17: skip = False
