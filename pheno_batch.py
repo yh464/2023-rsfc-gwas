@@ -6,12 +6,31 @@ python script that runs the asym_stats.py script in batches
 from _utils.logger import logger
 log = logger()
 
+def qc(input_args):
+  subj, nroi, args = input_args
+  import pandas as pd
+  import os
+  in_fname = args._in.replace('%sub',subj)
+  if not os.path.isfile(in_fname): return False, False
+
+  skip = True
+  try:
+    tmp = pd.read_table(f'{args.out}/global_graph/{subj}.txt')
+    if tmp.shape[0] != 17: skip = False
+    tmp = pd.read_table(f'{args.out}/global_asym/{subj}.txt')
+    if tmp.shape[0] != 17: skip = False
+    tmp = pd.read_table(f'{args.out}/local/{subj}.txt')
+    if tmp.shape[0] != nroi or tmp.shape[1] != 7: skip = False
+    tmp = pd.read_table(f'{args.out}/local_asym/{subj}.txt')
+    if tmp.shape[0] != nroi/2 or tmp.shape[1] != 21: skip = False
+  except: skip = False
+  return True, skip
+
 def main(args):
     import os
     import numpy as np
-    import pandas as pd
     from tqdm import tqdm
-    import time
+    from multiprocessing import Pool
     
     # nroi: HCP = 376, 500sym = 334, aparc = 84, economo = 102, sjh = 1027
     if 'HCP' in args._in: nroi = 376
@@ -26,43 +45,27 @@ def main(args):
     # array submitter
     from _utils.slurm import array_submitter
     submitter = array_submitter(name = 'pheno',partition = 'icelake',timeout = 15, parallel = 8)
-    
+  
     subjs = np.loadtxt(args.subjs,dtype = 'U')
-    n_completed = 0
-    n_missing = 0
-    n_submitted = 0
+    pool = Pool(64)
 
-    for subj in tqdm(subjs, desc = 'Checking progress for subjects'):
-      in_fname = args._in.replace('%sub',subj)
-      
-      # check progress
-      if not os.path.isfile(in_fname):
-        log.log(f'{subj}: no connectome found')
-        n_missing += 1
-        continue
-      
-      skip = True
-      if args.force: skip = False
-      
-      if skip:
-        try:
-          tmp = pd.read_table(f'{args.out}/global_graph/{subj}.txt')
-          if tmp.shape[0] != 17: skip = False
-          tmp = pd.read_table(f'{args.out}/global_asym/{subj}.txt')
-          if tmp.shape[0] != 17: skip = False
-          tmp = pd.read_table(f'{args.out}/local/{subj}.txt')
-          if tmp.shape[0] != nroi or tmp.shape[1] != 7: skip = False
-          tmp = pd.read_table(f'{args.out}/local_asym/{subj}.txt')
-          if tmp.shape[0] != nroi/2 or tmp.shape[1] != 21: skip = False
-        except: skip = False
-      
-      if skip: 
-        n_completed += 1
-      else:
-        indir = args._in.replace('%sub', subj)
-        n_submitted += 1
-        submitter.add(f'python pheno.py {subj} -i {indir} -o {args.out} {fs}')
-    
+    # check progress for all subjects
+    if not args.force:
+      progress = list(tqdm(pool.imap(qc, [(subj, nroi, args) for subj in subjs], chunksize = 64), total = len(subjs), desc = 'Checking progress for subjects'))
+      completed = [x[1] for x in progress]; missing = [x[0] for x in progress]; to_submit = [x[0] and not x[1] for x in progress]
+      n_completed = sum(completed); n_missing = sum(missing); n_to_submit = sum(to_submit)
+      log.log(f'{n_completed} subjects completed, {n_missing} subjects missing, {n_to_submit} subjects with incomplete output')
+      for subj in subjs[to_submit]: submitter.add(f'python pheno.py {subj} -i {args._in.replace("%sub", subj)} -o {args.out} {fs}')
+    else:
+      n_missing = 0
+      for subj in subjs:
+        in_fname = args._in.replace('%sub',subj)
+        if not os.path.isfile(in_fname):
+          log.log(f'{subj}: no connectome found')
+          n_missing += 1
+          continue
+        submitter.add(f'python pheno.py {subj} -i {in_fname} -o {args.out} {fs}')
+      log.log(f'{n_missing} subjects missing, {len(subjs)-n_missing} subjects to submit')
     submitter.submit()
     
     
